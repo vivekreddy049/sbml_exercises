@@ -1,6 +1,5 @@
-using SBMLToolkit
-using Catalyst, SBML
-using Test
+using  SBML
+
 
 cd(@__DIR__)
 sbmlfile = joinpath("data", "reactionsystem_01.xml")
