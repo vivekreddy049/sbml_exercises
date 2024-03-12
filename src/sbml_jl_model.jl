@@ -1,42 +1,115 @@
-using  SBML
+using SBML
+
+# Define `Compartment`s
+dummy_compartment = SBML.Compartment(
+    name = "planet_earth",
+    constant = true,
+    spatial_dimensions = 3,
+    size = 1.0,
+)
+
+# Define `Species`
+susceptible = SBML.Species(
+    name = "S",
+    compartment = "planet_earth",
+    initial_amount = 999.0,
+    substance_units = "substance",  # Ignore this for now
+    only_substance_units = true,  # Ignore this for now
+    boundary_condition = false,  # Ignore this for now
+    constant = false,  # Ignore this for now
+)
+# Todo: infected and recovered
+infected = SMBL.Species(
+    name = "I",
+    compartment = "planet_earth",
+    initial_amount =1.0,
+    substance_units="substance",
+    only_substance_units = true,  # Ignore this for now
+    boundary_condition = false,  # Ignore this for now
+    constant = false,  
+
+)
+recovery = SMBL.Species(
+    name = "R",
+    compartment = "planet_earth",
+    initial_amount =1.0,
+    substance_units="substance",
+    only_substance_units = true,  # Ignore this for now
+    boundary_condition = false,  # Ignore this for now
+    constant = false,  
+
+)
+
+# Define `Parameter`s
+alpha = SBML.Parameter(name = "alpha", value = 1e-4, constant = true)
+# Todo: beta
+beta = SBML.Parameter(name = "beta", value = 1e-3, constant = true)
 
 
-cd(@__DIR__)
-sbmlfile = joinpath("data", "reactionsystem_01.xml")
-const IV = Catalyst.DEFAULT_IV
-@parameters k1, c1
-@species s1(IV), s2(IV), s1s2(IV)
-
-COMP1 = SBML.Compartment("c1", true, 3, 2.0, "nl", nothing, nothing, nothing, nothing,
-    SBML.CVTerm[])
-SPECIES1 = SBML.Species(name = "s1", compartment = "c1", initial_amount = 1.0,
-    substance_units = "substance", only_substance_units = true,
-    boundary_condition = false, constant = false)  # Todo: Maybe not support units in initial_concentration?
-SPECIES2 = SBML.Species(name = "s2", compartment = "c1", initial_amount = 1.0,
-    substance_units = "substance/nl", only_substance_units = false)
-KINETICMATH1 = SBML.MathIdent("k1")
-KINETICMATH2 = SBML.MathApply("*", SBML.Math[SBML.MathIdent("k1"), SBML.MathIdent("s2")])
-KINETICMATH3 = SBML.MathApply("-",
-    SBML.Math[SBML.MathApply("*",
-            SBML.Math[SBML.MathIdent("k1"),
-                SBML.MathIdent("s1")]),
-        KINETICMATH1])
-REACTION1 = SBML.Reaction(products = [
-        SBML.SpeciesReference(species = "s1", stoichiometry = 1.0),
+# Define Reactions
+v_infection = SBML.MathApply(
+    "*",
+    SBML.Math[
+        SBML.MathIdent("planet_earth"),
+        SBML.MathIdent("alpha"),
+        SBML.MathIdent("S"),
+        SBML.MathIdent("I"),
     ],
-    kinetic_math = KINETICMATH1,
-    reversible = false)
-REACTION2 = SBML.Reaction(reactants = [
-        SBML.SpeciesReference(species = "s1", stoichiometry = 1.0),
+)
+infected = SBML.Reaction(
+    reactants = [SBML.SpeciesReference(species = "S", stoichiometry = 1.0)],
+    products = [SBML.SpeciesReference(species = "I", stoichiometry = 1.0)],
+    kinetic_math = v_infection,
+    reversible = false,
+)
+
+# Todo: recovery
+v_recovery = SBML.MathApply(
+    "*",
+    SBML.Math[
+        SBML.MathIdent("planet_earth"),
+        SBML.MathIdent("beta"),
+        SBML.MathIdent("I"),
+        SBML.MathIdent("R"),
     ],
-    kinetic_math = KINETICMATH3,
-    reversible = true)
-PARAM1 = SBML.Parameter(name = "k1", value = 1.0, constant = true)
-MODEL1 = SBML.Model(parameters = Dict("k1" => PARAM1),
-    compartments = Dict("c1" => COMP1),
-    species = Dict("s1" => SPECIES1),
-    reactions = Dict("r1" => REACTION1))  # PL: For instance in the compartments dict, we may want to enforce that key and compartment.name are identical
-MODEL2 = SBML.Model(parameters = Dict("k1" => PARAM1),
-    compartments = Dict("c1" => COMP1),
-    species = Dict("s1" => SPECIES1),
-    reactions = Dict("r3" => REACTION2))
+)
+
+ recovery = SBML.Reaction(
+    reactants = [SBML.SpeciesReference(species="I",stoichiometry=1.0)],
+    products = [SBML.SpeciesReference(species="R",stoichiometry=1.0)],
+    kinetic_math =v_recovery,
+    reversible=false,
+    
+
+ )
+
+# Define `Model`
+sir_model = SBML.Model(
+    parameters = Dict("alpha" => alpha, "beta" => beta),  # Todo: beta
+    compartments = Dict("planet_earth" => dummy_compartment),
+    # Todo: species = ...
+    species = Dict(
+        "S"=>susceptible,
+        "I"=>infected,
+        "R"=>recovery,
+    )
+    #Todo:reactions =...
+    reactions =[infected,recovery]
+    
+)
+
+using SBMLToolkit
+rs = ReactionSystem(sir_model)  # SBMLToolkit imports SBML.jl models
+
+using Catalyst
+odesys = convert(ODESystem, rs)
+odesys = structural_simplify(odesys)  # Makes model faster
+odeprob = ODEProblem(odesys, tspan = (0.0, 250.0))
+
+using OrdinaryDiffEq
+sol = solve(odeprob, Tsit5(), tspan = (0.0, 250.0))
+
+using Plots
+plot(sol, xlabel = "Time", title = "SIR Model")
+
+
