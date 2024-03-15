@@ -10,11 +10,10 @@ dummy_compartment = SBML.Compartment(
 susceptible = SBML.Species(
   name = "S",
   compartment = "planet_earth",
-  initial_amount = 999.0,
-  # Ignore these lines for now
-  # substance_units = "substance",
-  # only_substance_units = true,
-  # boundary_condition = false,
+  initial_amount = 50.0,
+  substance_units = "substance",
+   only_substance_units = true,
+   boundary_condition = false,
   constant = false,
 )
 
@@ -22,21 +21,19 @@ infected = SBML.Species(
   name = "I",
   compartment = "planet_earth",
   initial_amount = 1.0,
-  # Ignore these lines for now
-  # substance_units="substance",
-  # only_substance_units = true,
-  # boundary_condition = false,
+  substance_units="substance",
+   only_substance_units = true,
+   boundary_condition = false,
   constant = false,
 )
 
-recovery = SBML.Species(
+discovery = SBML.Species(
   name = "R",
   compartment = "planet_earth",
-  initial_amount = 1.0,
-  # Ignore these lines for now
-  # substance_units="substance",
-  # only_substance_units = true,
-  # boundary_condition = false,
+  initial_amount = 0.0,
+   substance_units="substance",
+   only_substance_units = true,
+   boundary_condition = false,
   constant = false,
 )
 
@@ -53,9 +50,12 @@ v_infection = SBML.MathApply(
   ],
 )
 
-infected = SBML.Reaction(
-  reactants = [SBML.SpeciesReference(species = "S", stoichiometry = 1.0)],
-  products = [SBML.SpeciesReference(species = "I", stoichiometry = 1.0)],
+infection = SBML.Reaction(
+  reactants = [
+    SBML.SpeciesReference(species = "S", stoichiometry = 1.0)
+    SBML.SpeciesReference(species = "I", stoichiometry = 1.0)
+  ],
+  products = [SBML.SpeciesReference(species = "I", stoichiometry = 2.0)],
   kinetic_math = v_infection,
   reversible = false,
 )
@@ -69,7 +69,7 @@ v_recovery = SBML.MathApply(
   ],
 )
 
-recovery = SBML.Reaction(
+recovery= SBML.Reaction(
   reactants = [SBML.SpeciesReference(species = "I", stoichiometry = 1.0)],
   products = [SBML.SpeciesReference(species = "R", stoichiometry = 1.0)],
   kinetic_math = v_recovery,
@@ -82,25 +82,25 @@ sir_model = SBML.Model(
   species = Dict(
     "S" => susceptible,
     "I" => infected,
-    "R" => recovery,
+    "R" => discovery,
   ),
   reactions = Dict(
-    "r1" => infected,
+    "r1" => infection,
     "r2" => recovery,
   ),
 )
 
 using SBMLToolkit
-
 rs = ReactionSystem(sir_model)  # SBMLToolkit imports SBML.jl models
 
 using Catalyst
 odesys = convert(ODESystem, rs)
 odesys = structural_simplify(odesys)  # Makes model faster
-odeprob = ODEProblem(odesys, tspan = (0.0, 250.0))
+odeprob = ODEProblem(odesys, tspan = (0.0, 10.0))
 
 using OrdinaryDiffEq
-sol = solve(odeprob, Tsit5(), tspan = (0.0, 250.0))
+sol = solve(odeprob, Tsit5(), tspan = (0.0, 10.0))
 
 using Plots
 plot(sol, xlabel = "Time", title = "SIR Model")
+ 
